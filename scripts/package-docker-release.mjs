@@ -75,12 +75,14 @@ function imageID(tag) {
     throw new Error(`Wrong architecture: ${tag}`);
   return info.Id;
 }
+imageID(appTag);
+imageID(caddyTag);
 const manifest = {
   RELEASE_VERSION: version,
   RELEASE_PLATFORM: platform,
   DATA_SCHEMA: '1',
-  APP_IMAGE: imageID(appTag),
-  CADDY_IMAGE: imageID(caddyTag),
+  APP_IMAGE: appTag,
+  CADDY_IMAGE: caddyTag,
 };
 const manifestText = Object.entries(manifest)
   .map(([key, value]) => `${key}=${value}\n`)

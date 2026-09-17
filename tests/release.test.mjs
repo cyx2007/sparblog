@@ -11,8 +11,8 @@ const manifest =
     'RELEASE_VERSION=v1.0.0',
     'RELEASE_PLATFORM=linux/amd64',
     'DATA_SCHEMA=1',
-    `APP_IMAGE=sha256:${'a'.repeat(64)}`,
-    `CADDY_IMAGE=sha256:${'b'.repeat(64)}`,
+    'APP_IMAGE=sparblog-admin:v1.0.0-amd64',
+    'CADDY_IMAGE=sparblog-caddy:v1.0.0-amd64',
   ].join('\n') + '\n';
 
 test('release metadata rejects paths, shell expressions, floating images and unknown schemas', () => {
@@ -32,6 +32,11 @@ test('release metadata rejects paths, shell expressions, floating images and unk
     manifest + 'EXTRA=$(id)\n',
     manifest.replace('DATA_SCHEMA=1', 'DATA_SCHEMA=2'),
     manifest.replace(/APP_IMAGE=.*/, 'APP_IMAGE=caddy:latest'),
+    manifest.replace(/APP_IMAGE=.*/, 'APP_IMAGE=sparblog-admin:v2.0.0-amd64'),
+    manifest.replace(
+      /CADDY_IMAGE=.*/,
+      'CADDY_IMAGE=sparblog-caddy:v1.0.0-arm64',
+    ),
     manifest.replace(/APP_IMAGE=.*/, 'APP_IMAGE=$(id)'),
     manifest.replace('RELEASE_VERSION=v1.0.0', 'RELEASE_VERSION=../../etc'),
     manifest.replace(/CADDY_IMAGE=.*\n/, ''),

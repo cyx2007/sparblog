@@ -22,7 +22,7 @@ load_release() {
       RELEASE_VERSION) version_ok "$manifest_value" || die 'Invalid release version.' ;;
       RELEASE_PLATFORM) [[ $manifest_value == linux/amd64 || $manifest_value == linux/arm64 ]] || die 'Invalid architecture.' ;;
       DATA_SCHEMA) [[ $manifest_value == 1 ]] || die 'Unsupported data schema; a migration is required.' ;;
-      APP_IMAGE|CADDY_IMAGE) [[ $manifest_value =~ ^sha256:[a-f0-9]{64}$ ]] || die 'Image must be pinned by ID.' ;;
+      APP_IMAGE|CADDY_IMAGE) [[ $manifest_value =~ ^sparblog-(admin|caddy):[0-9A-Za-z.-]+$ ]] || die 'Invalid image reference.' ;;
       *) die 'Unknown release field.' ;;
     esac
     export "$manifest_key=$manifest_value"
@@ -30,6 +30,21 @@ load_release() {
     count=$((count + 1))
   done < "$1/release.env"
   [[ $count == 5 ]] || die 'Incomplete release manifest.'
+  local suffix=$RELEASE_VERSION-${RELEASE_PLATFORM#linux/}
+  [[ $APP_IMAGE == "sparblog-admin:$suffix" && $CADDY_IMAGE == "sparblog-caddy:$suffix" ]] || die 'Image references do not match the release.'
+}
+
+load_runtime() {
+  local runtime_key runtime_value count=0 seen=' '
+  [[ -f $1/runtime.env && ! -L $1/runtime.env ]] || die 'Load this release before starting it.'
+  while IFS='=' read -r runtime_key runtime_value || [[ -n $runtime_key ]]; do
+    [[ $seen != *" $runtime_key "* && $runtime_value =~ ^sha256:[a-f0-9]{64}$ ]] || die 'Invalid local image ID.'
+    case "$runtime_key" in APP_IMAGE|CADDY_IMAGE) ;; *) die 'Invalid runtime field.' ;; esac
+    export "$runtime_key=$runtime_value"
+    seen+="$runtime_key "
+    count=$((count + 1))
+  done < "$1/runtime.env"
+  [[ $count == 2 ]] || die 'Incomplete local image IDs.'
 }
 
 load_config() {
@@ -90,18 +105,25 @@ compose() {
   local release=$1
   shift
   load_release "$release"
+  load_runtime "$release"
   docker compose --project-name "$COMPOSE_PROJECT_NAME" --project-directory "$ROOT" \
     --env-file "$ROOT/config.env" --env-file "$release/release.env" -f "$release/compose.yaml" "$@"
 }
 
 load_images() {
-  local release=$1 id actual
+  local release=$1 id actual local_app local_caddy
   verify_bundle "$release"
   docker image load --input "$release/images.tar"
   for id in "$APP_IMAGE" "$CADDY_IMAGE"; do
     actual=$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$id")
     [[ $actual == "$RELEASE_PLATFORM" ]] || die 'Loaded image architecture does not match manifest.'
   done
+  # Classic Docker stores use config IDs; containerd stores can use manifest IDs.
+  # Resolve after loading the checksummed archive, then pin this host's IDs.
+  local_app=$(docker image inspect --format '{{.Id}}' "$APP_IMAGE")
+  local_caddy=$(docker image inspect --format '{{.Id}}' "$CADDY_IMAGE")
+  printf 'APP_IMAGE=%s\nCADDY_IMAGE=%s\n' "$local_app" "$local_caddy" > "$release/runtime.env.next"
+  mv -f -- "$release/runtime.env.next" "$release/runtime.env"
   compose "$release" config --quiet
   docker run --rm --pull never --network none -e SITE_ADDRESS -e SITE_ROOT=/published/current \
     -e ADMIN_UPSTREAM=admin:4330 -v "$release/Caddyfile:/etc/caddy/Caddyfile:ro" \
@@ -143,6 +165,7 @@ proxy_config() {
 backup_stopped() {
   local release=$1 backup_dir name
   load_release "$release"
+  load_runtime "$release"
   backup_dir=$(mktemp -d "$ROOT/backups/$(date -u +%Y%m%dT%H%M%SZ)-XXXXXXXX")
   local mounts=()
   for name in admin_state notes settings images published caddy_data caddy_config; do

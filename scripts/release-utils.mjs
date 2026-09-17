@@ -61,8 +61,13 @@ export function parseRelease(text) {
   releaseVersion(values.RELEASE_VERSION);
   platformName(values.RELEASE_PLATFORM);
   if (values.DATA_SCHEMA !== '1') throw new Error('Unsupported data schema.');
-  for (const key of ['APP_IMAGE', 'CADDY_IMAGE'])
-    if (!/^sha256:[a-f0-9]{64}$/.test(values[key]))
-      throw new Error('Images must be pinned by ID.');
+  const suffix = `${values.RELEASE_VERSION}-${values.RELEASE_PLATFORM.split('/')[1]}`;
+  if (
+    values.APP_IMAGE !== `sparblog-admin:${suffix}` ||
+    values.CADDY_IMAGE !== `sparblog-caddy:${suffix}`
+  )
+    throw new Error(
+      'Image references must match the exact release version and architecture.',
+    );
   return values;
 }

@@ -2,7 +2,7 @@
 
 发布页：[cyx2007/sparblog Releases](https://github.com/cyx2007/sparblog/releases)。下载 `.tar.gz` **部署附件**和对应 `.sha256`，GitHub 自动生成的 Source code 压缩包不含镜像。
 
-每个包包含应用、Node.js、Astro 依赖及 Caddy 镜像，另附 Compose 配置、管理脚本和内部校验清单。服务器只需 Docker Engine、Compose v2 和 Ubuntu 自带的 Bash/coreutils/util-linux，无需安装 Node/npm/Git。镜像按固定 ID 启动，安装、升级和回滚均不从镜像仓库下载，也不现场制作镜像。文章发布仍由应用容器内的 Astro 构建静态页面。
+每个包包含应用、Node.js、Astro 依赖及 Caddy 镜像，另附 Compose 配置、管理脚本和内部校验清单。服务器只需 Docker Engine、Compose v2 和 Ubuntu 自带的 Bash/coreutils/util-linux，无需安装 Node/npm/Git。脚本校验并导入镜像后解析目标 Docker 的本地 ID，再按固定 ID 启动，兼容不同的 Docker 镜像存储方式。安装、升级和回滚均不从镜像仓库下载，也不现场制作镜像。文章发布仍由应用容器内的 Astro 构建静态页面。
 
 ## 首次安装
 

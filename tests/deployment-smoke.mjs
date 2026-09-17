@@ -36,6 +36,8 @@ const source = parseRelease(
 const temp = await mkdtemp(path.join(tmpdir(), 'sparblog-deploy-test-'));
 const root = path.join(temp, 'installed');
 const project = `sparblog-test-${randomUUID().slice(0, 8)}`;
+const upgradedVersion = `v0.0.0-upgrade.${project.slice(-8)}`;
+const brokenVersion = `v0.0.0-broken.${project.slice(-8)}`;
 const testImages = [];
 const run = (cmd, args, options = {}) =>
   new Promise((resolve, reject) => {
@@ -120,10 +122,13 @@ async function derivative(version, failing = false) {
     (file) => file !== 'images.tar',
   ))
     await cp(path.join(bundle, file), path.join(dir, file));
-  const tag = `${project}:${version}`;
+  const arch = source.RELEASE_PLATFORM.split('/')[1];
+  const tag = `sparblog-admin:${version}-${arch}`;
+  const caddyTag = `sparblog-caddy:${version}-${arch}`;
   const base = `${project}:base`;
   await docker('tag', source.APP_IMAGE, base);
-  testImages.push(base, tag);
+  testImages.push(base, tag, caddyTag);
+  await docker('tag', source.CADDY_IMAGE, caddyTag);
   const edit = `const fs=require('node:fs');const p='/app/src/layouts/SiteLayout.astro';fs.writeFileSync(p,fs.readFileSync(p,'utf8').replace('</footer>','<span>RELEASE_UPGRADE_TEST</span></footer>'));fs.writeFileSync('/app/src/data/settings/site.json',JSON.stringify({description:'NEW_DEFAULT',about:'NEW_DEFAULT'}));`;
   const context = path.join(temp, 'image-build');
   await mkdir(context, { recursive: true });
@@ -132,13 +137,13 @@ async function derivative(version, failing = false) {
     `FROM ${base}\n${failing ? 'CMD ["node", "-e", "process.exit(1)"]' : `RUN ${JSON.stringify(['node', '-e', edit])}`}\n`,
   );
   await docker('build', '-t', tag, context);
-  const image = await docker('image', 'inspect', '--format', '{{.Id}}', tag);
   const manifest = await readFile(path.join(dir, 'release.env'), 'utf8');
   await writeFile(
     path.join(dir, 'release.env'),
     manifest
       .replace(/^RELEASE_VERSION=.*/m, `RELEASE_VERSION=${version}`)
-      .replace(/^APP_IMAGE=.*/m, `APP_IMAGE=${image}`),
+      .replace(/^APP_IMAGE=.*/m, `APP_IMAGE=${tag}`)
+      .replace(/^CADDY_IMAGE=.*/m, `CADDY_IMAGE=${caddyTag}`),
   );
   await docker(
     'image',
@@ -146,7 +151,7 @@ async function derivative(version, failing = false) {
     '--output',
     path.join(dir, 'images.tar'),
     tag,
-    source.CADDY_IMAGE,
+    caddyTag,
   );
   await checksums(dir);
   return dir;
@@ -170,6 +175,23 @@ try {
       SPARBLOG_HTTPS_PORT: String(await port()),
     },
   });
+  const localIDs = await readFile(
+    path.join(root, 'releases', source.RELEASE_VERSION, 'runtime.env'),
+    'utf8',
+  );
+  for (const key of ['APP_IMAGE', 'CADDY_IMAGE']) {
+    const localID = await docker(
+      'image',
+      'inspect',
+      '--format',
+      '{{.Id}}',
+      source[key],
+    );
+    assert.ok(
+      localIDs.includes(`${key}=${localID}\n`),
+      'Deployment must resolve and pin the target Docker image ID.',
+    );
+  }
   const logs = await docker('logs', await container('admin'));
   const token = logs.match(/#setup=([^\s]+)/)?.[1];
   assert.ok(token, 'First setup link missing.');
@@ -234,12 +256,16 @@ try {
     0,
   );
   assert.ok(!(await readdir(temp)).includes('executed'));
+  const wrongPlatform =
+    source.RELEASE_PLATFORM === 'linux/amd64' ? 'linux/arm64' : 'linux/amd64';
   await writeFile(
     path.join(invalid, 'release.env'),
-    original.replace(
-      source.RELEASE_PLATFORM,
-      source.RELEASE_PLATFORM === 'linux/amd64' ? 'linux/arm64' : 'linux/amd64',
-    ),
+    original
+      .replace(source.RELEASE_PLATFORM, wrongPlatform)
+      .replaceAll(
+        `-${source.RELEASE_PLATFORM.split('/')[1]}`,
+        `-${wrongPlatform.split('/')[1]}`,
+      ),
   );
   await checksums(invalid);
   assert.notEqual(
@@ -267,7 +293,7 @@ try {
   console.log(
     'Deployment: new image preserves accounts, settings, articles, media and public pages',
   );
-  const upgraded = await derivative('v99.0.0-upgrade');
+  const upgraded = await derivative(upgradedVersion);
   const proxyBefore = await container('blog');
   let pollError;
   const poll = setInterval(() => {
@@ -305,7 +331,7 @@ try {
   assert.match(await (await fetch(origin)).text(), /RELEASE_UPGRADE_TEST/);
 
   console.log('Deployment: failed startup restores the previous program');
-  const broken = await derivative('v99.0.1-broken', true);
+  const broken = await derivative(brokenVersion, true);
   const failed = await run(
     'bash',
     [path.join(root, 'manage.sh'), 'upgrade', broken],
@@ -314,7 +340,7 @@ try {
   assert.notEqual(failed.code, 0, 'Broken image must fail deployment.');
   assert.equal(
     await readlink(path.join(root, 'current')),
-    'releases/v99.0.0-upgrade',
+    `releases/${upgradedVersion}`,
   );
   await api('login', 'POST', credentials);
   assert.equal((await api('settings')).description, settings.description);
