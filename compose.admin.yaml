@@ -1,0 +1,42 @@
+services:
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.admin
+    init: true
+    restart: unless-stopped
+    environment:
+      ADMIN_ORIGIN: ${ADMIN_ORIGIN:?Set ADMIN_ORIGIN to the public HTTPS origin}
+    expose:
+      - '4330'
+    volumes:
+      - admin_state:/app/.admin
+      - notes:/app/src/content/notes
+      - settings:/app/src/data/settings
+      - images:/app/public/images
+      - published:/published
+  blog:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - admin
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-sparsity.tech}
+      SITE_ROOT: /published/current
+      ADMIN_UPSTREAM: admin:4330
+    ports:
+      - '${HTTP_PORT:-80}:80'
+      - '${HTTPS_PORT:-443}:443'
+    volumes:
+      - ./deploy/Caddyfile.container:/etc/caddy/Caddyfile:ro
+      - published:/published:ro
+      - caddy_data:/data
+      - caddy_config:/config
+volumes:
+  admin_state:
+  notes:
+  settings:
+  images:
+  published:
+  caddy_data:
+  caddy_config:

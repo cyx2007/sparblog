@@ -1,0 +1,138 @@
+---
+import { navItems, site } from '../data/site';
+import '../styles/global.css';
+interface Props {
+  title?: string;
+  description?: string;
+  section?: string;
+  noindex?: boolean;
+  canonicalPath?: string;
+  article?: { date: Date; updated?: Date };
+}
+const {
+  title,
+  description = site.description,
+  section,
+  noindex = false,
+  article,
+  canonicalPath,
+} = Astro.props;
+const pageTitle = title ? `${title} - ${site.name}` : site.name;
+const canonical = new URL(canonicalPath ?? Astro.url.pathname, site.url).href;
+const structuredData =
+  article && !noindex
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'BlogPosting',
+        headline: title,
+        description,
+        url: canonical,
+        datePublished: article.date.toISOString(),
+        dateModified: (article.updated ?? article.date).toISOString(),
+        mainEntityOfPage: canonical,
+      }
+    : null;
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex, follow" />}
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml" />
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title={site.name}
+      href="/rss.xml"
+    />
+    <meta property="og:type" content={article ? 'article' : 'website'} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:locale" content="zh_CN" />
+    {article && (
+      <meta
+        property="article:published_time"
+        content={article.date.toISOString()}
+      />
+    )}
+    {article?.updated && (
+      <meta
+        property="article:modified_time"
+        content={article.updated.toISOString()}
+      />
+    )}
+    {structuredData && (
+      <script
+        type="application/ld+json"
+        set:html={JSON.stringify(structuredData).replace(/</g, '\\u003c')}
+      ></script>
+    )}
+    <title>{pageTitle}</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">
+      跳到正文
+    </a>
+    <div class="site-shell">
+      <header class="site-header">
+        <a href="/" class="site-name" aria-label="sparsity.tech 首页">
+          <span class="sparse-mark" aria-hidden="true">
+            {Array.from({ length: 9 }, (_, i) => (
+              <i class:list={{ filled: [0, 5, 7].includes(i) }} />
+            ))}
+          </span>
+          sparsity<span class="domain">.tech</span>
+        </a>
+        <nav aria-label="博客导航">
+          {navItems.map((item) => (
+            <a
+              href={item.path}
+              aria-current={section === item.path ? 'page' : undefined}
+            >
+              {item.label}
+            </a>
+          ))}
+        </nav>
+      </header>
+      <main id="main" tabindex="-1">
+        <slot />
+      </main>
+      <footer class="site-footer">
+        <div class="footer-meta">
+          <span>{`©${new Date().getFullYear()} ${site.copyrightName}`}</span>
+          <a href="/rss.xml">RSS</a>
+        </div>
+        <nav class="footer-registrations" aria-label="网站备案">
+          <a
+            href={site.registration.icp.url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span>{site.registration.icp.number}</span>
+            <span class="sr-only">（在新标签页打开）</span>
+          </a>
+          <a
+            href={site.registration.police.url}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <img
+              src={site.registration.police.icon}
+              width="9"
+              height="10"
+              alt=""
+            />
+            <span>{site.registration.police.number}</span>
+            <span class="sr-only">（在新标签页打开）</span>
+          </a>
+        </nav>
+      </footer>
+    </div>
+  </body>
+</html>

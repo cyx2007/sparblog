@@ -1,0 +1,70 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+import BlogSidebar from './BlogSidebar.astro';
+import PostMeta from './PostMeta.astro';
+import { getNotes, noteUrl, pageUrl } from '../lib/notes';
+import { site } from '../data/site';
+interface Props {
+  page?: number;
+}
+const { page = 1 } = Astro.props;
+const notes = await getNotes();
+const pageCount = Math.max(1, Math.ceil(notes.length / site.pageSize));
+const visibleNotes = notes.slice(
+  (page - 1) * site.pageSize,
+  page * site.pageSize,
+);
+---
+
+<SiteLayout
+  title={page > 1 ? `第 ${page} 页` : undefined}
+  section="/"
+  noindex={!visibleNotes.some((note) => !note.data.example)}
+>
+  <div class="traditional-blog">
+    <section class="post-feed">
+      <h1 class="sr-only">最近文章{page > 1 ? ` · 第 ${page} 页` : ''}</h1>
+      {visibleNotes.map((note) => (
+        <article class="feed-post">
+          <h2>
+            <a href={noteUrl(note.id)}>{note.data.title}</a>
+          </h2>
+          <PostMeta note={note} />
+          {(note.data.excerpt ?? [note.data.description]).map((paragraph) => (
+            <p>{paragraph}</p>
+          ))}
+          <a
+            class="read-more"
+            href={noteUrl(note.id)}
+            aria-label={`阅读全文：${note.data.title}`}
+          >
+            阅读全文 »
+          </a>
+        </article>
+      ))}
+      {notes.length === 0 && <p class="empty-state">还没有文章。</p>}
+      {pageCount > 1 && (
+        <nav class="pagination" aria-label="文章分页">
+          <div>
+            {page > 1 && (
+              <a href={pageUrl(page - 1)} rel="prev">
+                ← 较新的文章
+              </a>
+            )}
+          </div>
+          <span>
+            {page} / {pageCount}
+          </span>
+          <div>
+            {page < pageCount && (
+              <a href={pageUrl(page + 1)} rel="next">
+                以前的文章 →
+              </a>
+            )}
+          </div>
+        </nav>
+      )}
+    </section>
+    <BlogSidebar notes={notes} />
+  </div>
+</SiteLayout>

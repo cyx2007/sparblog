@@ -1,0 +1,42 @@
+---
+import { getCategories, noteUrl, type Note } from '../lib/notes';
+import { site } from '../data/site';
+interface Props {
+  notes: Note[];
+}
+const { notes } = Astro.props;
+const categories = getCategories(notes);
+---
+
+<aside class="blog-sidebar" aria-label="博客侧栏">
+  <p class="sidebar-intro">{site.description.replace('，', '，\n')}</p>
+  {categories.length > 0 && (
+    <section>
+      <h2>分类</h2>
+      <ul>
+        {categories.map((category) => (
+          <li>
+            <a href={category.url}>{category.name}</a>{' '}
+            <span>({category.count})</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+  {notes.length > 0 && (
+    <section>
+      <h2>最近文章</h2>
+      <ul>
+        {notes.slice(0, 3).map((note) => (
+          <li>
+            <a href={noteUrl(note.id)}>{note.data.title}</a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+  <section>
+    <h2>订阅</h2>
+    <a href="/rss.xml">RSS</a>
+  </section>
+</aside>

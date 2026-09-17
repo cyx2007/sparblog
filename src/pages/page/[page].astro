@@ -1,0 +1,15 @@
+---
+import BlogHome from '../../components/BlogHome.astro';
+import { getNotes } from '../../lib/notes';
+import { site } from '../../data/site';
+export async function getStaticPaths() {
+  const count = Math.ceil((await getNotes()).length / site.pageSize);
+  return Array.from({ length: Math.max(0, count - 1) }, (_, index) => ({
+    params: { page: String(index + 2) },
+    props: { page: index + 2 },
+  }));
+}
+const { page } = Astro.props;
+---
+
+<BlogHome page={page} />

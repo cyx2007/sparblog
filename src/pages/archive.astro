@@ -1,0 +1,131 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+import ArchiveList from '../components/ArchiveList.astro';
+import { getNotes, getCategories } from '../lib/notes';
+const notes = await getNotes();
+const categories = getCategories(notes);
+---
+
+<SiteLayout
+  title="归档"
+  section="/archive/"
+  noindex={!notes.some((note) => !note.data.example)}
+>
+  <div class="simple-content">
+    <header class="page-intro">
+      <h1>归档</h1>
+      <p>{notes.length} 篇文章</p>
+    </header>
+    {categories.length > 0 && (
+      <nav class="category-links" aria-label="文章分类">
+        {categories.map((category) => (
+          <a href={category.url}>
+            {category.name} ({category.count})
+          </a>
+        ))}
+      </nav>
+    )}
+    <form id="archive-search" role="search" hidden>
+      <label for="search-input" class="sr-only">
+        搜索文章
+      </label>
+      <input
+        id="search-input"
+        type="search"
+        placeholder="搜索文章…"
+        autocomplete="off"
+        maxlength="200"
+      />
+    </form>
+    <p
+      id="search-status"
+      class="search-status"
+      role="status"
+      aria-live="polite"
+    ></p>
+    <div id="search-results" hidden></div>
+    <div id="archive-entries">
+      <ArchiveList notes={notes} />
+      {notes.length === 0 && <p class="empty-state">还没有文章。</p>}
+    </div>
+  </div>
+  <script>
+    interface SearchEntry {
+      title: string;
+      url: string;
+      date: string;
+      category: string;
+      text: string;
+      example: boolean;
+    }
+    const form = document.querySelector<HTMLFormElement>('#archive-search')!;
+    const input = document.querySelector<HTMLInputElement>('#search-input')!;
+    const status = document.querySelector<HTMLElement>('#search-status')!;
+    const results = document.querySelector<HTMLElement>('#search-results')!;
+    const archive = document.querySelector<HTMLElement>('#archive-entries')!;
+    let index: Promise<SearchEntry[]> | undefined;
+    let revision = 0;
+    const normalize = (text: string) =>
+      text.normalize('NFKC').toLocaleLowerCase();
+    form.hidden = false;
+    form.addEventListener('submit', (event) => event.preventDefault());
+    input.addEventListener('input', async () => {
+      const current = ++revision;
+      const terms = normalize(input.value.trim()).split(/\s+/).filter(Boolean);
+      results.replaceChildren();
+      results.hidden = true;
+      archive.hidden = false;
+      if (!terms.length) {
+        status.textContent = '';
+        return;
+      }
+      status.textContent = '正在搜索…';
+      try {
+        index ??= fetch('/search-index.json').then((response) => {
+          if (!response.ok) throw new Error('Search index unavailable');
+          return response.json() as Promise<SearchEntry[]>;
+        });
+        const entries = await index;
+        if (current !== revision) return;
+        const matches = entries.filter((entry) => {
+          const text = normalize(
+            `${entry.title} ${entry.category} ${entry.text}`,
+          );
+          return terms.every((term) => text.includes(term));
+        });
+        const list = document.createElement('ul');
+        list.className = 'archive-list';
+        for (const entry of matches) {
+          const item = document.createElement('li');
+          item.className = 'archive-item';
+          const time = document.createElement('time');
+          time.dateTime = entry.date;
+          time.textContent = entry.date;
+          const text = document.createElement('span');
+          const link = document.createElement('a');
+          link.href = entry.url;
+          link.textContent = entry.title;
+          text.append(link);
+          if (entry.example) {
+            const label = document.createElement('small');
+            label.className = 'example-label';
+            label.textContent = '示例';
+            text.append(label);
+          }
+          item.append(time, text);
+          list.append(item);
+        }
+        results.replaceChildren(list);
+        archive.hidden = true;
+        results.hidden = false;
+        status.textContent = matches.length
+          ? `找到 ${matches.length} 篇文章`
+          : '没有找到相关文章。';
+      } catch {
+        index = undefined;
+        if (current !== revision) return;
+        status.textContent = '暂时无法搜索，请查看下方归档。';
+      }
+    });
+  </script>
+</SiteLayout>

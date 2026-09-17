@@ -1,0 +1,23 @@
+[Unit]
+Description=sparsity.tech administration
+After=network.target
+
+[Service]
+Type=simple
+User=sparsity
+Group=sparsity
+WorkingDirectory=/opt/sparsity
+EnvironmentFile=/etc/sparsity-admin.env
+ExecStart=/usr/bin/node /opt/sparsity/admin/server.mjs
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=240
+UMask=0022
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/sparsity/.admin /opt/sparsity/src/content/notes /opt/sparsity/src/data/settings /opt/sparsity/public/images /var/www/sparsity
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,31 @@
+---
+import { dateLabel, noteUrl, type Note } from '../lib/notes';
+interface Props {
+  notes: Note[];
+}
+const { notes } = Astro.props;
+const years = [
+  ...new Set(notes.map((note) => dateLabel(note.data.date).slice(0, 4))),
+];
+---
+
+{years.map((year) => (
+  <section class="archive-group">
+    <h2>{year}</h2>
+    <ul class="archive-list">
+      {notes
+        .filter((note) => dateLabel(note.data.date).startsWith(year))
+        .map((note) => (
+          <li class="archive-item">
+            <time datetime={note.data.date.toISOString()}>
+              {dateLabel(note.data.date)}
+            </time>
+            <span>
+              <a href={noteUrl(note.id)}>{note.data.title}</a>
+              {note.data.example && <small class="example-label">示例</small>}
+            </span>
+          </li>
+        ))}
+    </ul>
+  </section>
+))}

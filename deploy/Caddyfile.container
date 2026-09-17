@@ -1,0 +1,21 @@
+{$SITE_ADDRESS::80} {
+	root * {$SITE_ROOT:/srv}
+	encode zstd gzip
+	@admin path /admin /admin/*
+	reverse_proxy @admin {$ADMIN_UPSTREAM:127.0.0.1:4330}
+	@oldHome path /a /b /c /a/ /b/ /c/ /compare /compare/
+	redir @oldHome / 301
+	@oldPage path_regexp legacy ^/[abc]/(.+)$
+	redir @oldPage /{re.legacy.1} 301
+	@assets path /_astro/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	@rss path /rss.xml
+	header @rss Content-Type "application/rss+xml; charset=utf-8"
+	file_server
+	handle_errors {
+		rewrite * /404.html
+		file_server
+	}
+	header X-Content-Type-Options nosniff
+	header Referrer-Policy strict-origin-when-cross-origin
+}

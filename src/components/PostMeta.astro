@@ -1,0 +1,16 @@
+---
+import { categoryUrl, dateLabel, type Note } from '../lib/notes';
+interface Props {
+  note: Note;
+}
+const { note } = Astro.props;
+---
+
+<p class="post-date">
+  <time datetime={note.data.date.toISOString()}>
+    {dateLabel(note.data.date)}
+  </time>
+  <span aria-hidden="true"> · </span>
+  <a href={categoryUrl(note.data.category)}>{note.data.category}</a>
+  {note.data.example && <span> · 示例</span>}
+</p>

@@ -1,0 +1,19 @@
+---
+import SiteLayout from '../layouts/SiteLayout.astro';
+import { satteri } from '@astrojs/markdown-satteri';
+import { site } from '../data/site';
+
+const renderer = await satteri().createRenderer({
+  shikiConfig: { theme: 'github-light' },
+});
+const { code } = await renderer.render(site.about);
+---
+
+<SiteLayout title="关于" section="/about/">
+  <div class="simple-content">
+    <header class="page-intro">
+      <h1>关于</h1>
+    </header>
+    <div class="prose" set:html={code} />
+  </div>
+</SiteLayout>
