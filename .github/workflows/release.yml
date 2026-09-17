@@ -125,9 +125,15 @@ jobs:
 
           [完整部署说明](https://github.com/cyx2007/sparblog/blob/main/deploy/RELEASES.md)
           NOTES
-          gh release create "$RELEASE_TAG" ./*.tar.gz ./*.sha256 --verify-tag --draft --title "sparblog $RELEASE_TAG" --notes-file /tmp/release-notes.md
+          release_flags=()
+          latest=true
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            release_flags+=(--prerelease)
+            latest=false
+          fi
+          gh release create "$RELEASE_TAG" ./*.tar.gz ./*.sha256 --verify-tag --draft "${release_flags[@]}" --title "sparblog $RELEASE_TAG" --notes-file /tmp/release-notes.md
           mkdir /tmp/release-readback
           gh release download "$RELEASE_TAG" --dir /tmp/release-readback --pattern '*.tar.gz' --pattern '*.sha256'
           cd /tmp/release-readback
           sha256sum -c ./*.sha256
-          gh release edit "$RELEASE_TAG" --draft=false --latest
+          gh release edit "$RELEASE_TAG" --draft=false --latest="$latest"

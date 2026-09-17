@@ -169,6 +169,8 @@ recover() {
       compose "$OLD" up -d --no-deps --wait --wait-timeout 120 admin
       compose "$OLD" up -d --no-deps --wait --wait-timeout 60 blog
       compose "$OLD" exec -T blog caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+      ln -s "releases/$(basename "$OLD")" "$ROOT/.recovered-$$"
+      mv -Tf "$ROOT/.recovered-$$" "$ROOT/current"
     else
       printf 'First installation failed; stopping its containers. Correct the problem and run upgrade with the same bundle.\n' >&2
       compose "$NEW" stop
@@ -192,11 +194,11 @@ activate() {
   compose "$target" up -d --no-deps --wait --wait-timeout 120 admin
   compose "$target" up -d --no-deps --wait --wait-timeout 60 blog
   compose "$target" exec -T blog caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
-  ln -s "releases/$(basename "$target")" "$ROOT/.current-$$"
-  mv -Tf "$ROOT/.current-$$" "$ROOT/current"
   cp -- "$target/manage.sh" "$ROOT/manage.sh.next"
   chmod 755 "$ROOT/manage.sh.next"
   mv -f -- "$ROOT/manage.sh.next" "$ROOT/manage.sh"
+  ln -s "releases/$(basename "$target")" "$ROOT/.current-$$"
+  mv -Tf "$ROOT/.current-$$" "$ROOT/current"
   CHANGING=0
   printf 'Active release: %s\nAdmin: %s/admin/\n' "$(basename "$target")" "$ADMIN_ORIGIN"
   printf 'Log in and build/publish to update public pages. Use manage.sh logs for the first administrator setup link.\n'

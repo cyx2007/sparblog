@@ -182,7 +182,7 @@ HTTPS_PORT=443
 
 配置 DNS 并开放端口后重新运行 `docker compose up -d --build`。证书持久化在 Compose 卷中，更新时保留这些卷。
 
-部署配置已准备，Compose 配置可解析。当前电脑 Docker daemon 未运行，尚未实际构建容器或连接 Ubuntu 主机；真实 DNS、HTTPS 与服务器运行结果需在部署时验证。
+完整镜像包由 GitHub Actions 构建，并在原生 AMD64、ARM64 Ubuntu 上运行部署测试；具体结果以对应版本的 CI 为准。真实 DNS、HTTPS 与目标服务器运行结果仍需在部署时验证。
 
 ## 参考
 
