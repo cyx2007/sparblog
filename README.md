@@ -124,6 +124,14 @@ npm run release
 
 ## Ubuntu 26.04 部署
 
+### GitHub Releases 完整镜像包（含管理后台）
+
+推荐在 Ubuntu 使用 [GitHub Release 部署包](https://github.com/cyx2007/sparblog/releases)。它包含应用和 Caddy 的预构建镜像、校验文件及安装/升级/回滚脚本，分别提供 AMD64 和 ARM64 包。服务器仅需 Docker Engine 与 Compose v2，无需安装 Node/npm/Git 或现场制作镜像。
+
+校验并解压部署附件后，执行 `sudo bash ./manage.sh install /opt/sparblog https://sparsity.tech`，通过 `sudo /opt/sparblog/manage.sh logs` 获取首次管理员初始化链接。后续用 `sudo /opt/sparblog/manage.sh upgrade /path/to/extracted-bundle` 升级，文章、图片、网站设置、账号与公开版本保存在独立命名卷中。
+
+具体下载、数据保留、备份和回滚步骤见 [GitHub 镜像包部署说明](deploy/RELEASES.md)。下方纯静态包和源码 Compose 部署方式继续可用。
+
 ### 静态文件 + Caddy
 
 1. 在本地或 CI 运行 `npm ci`、`npm run release`，上传压缩包及其 `.sha256` 文件到 Ubuntu。

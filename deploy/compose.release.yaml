@@ -1,0 +1,58 @@
+services:
+  admin:
+    image: ${APP_IMAGE:?Missing release image}
+    pull_policy: never
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 10m
+    environment:
+      ADMIN_ORIGIN: ${ADMIN_ORIGIN:?Missing public origin}
+    healthcheck:
+      test: ['CMD', 'node', 'admin/healthcheck.mjs']
+      interval: 5s
+      timeout: 6s
+      retries: 12
+      start_period: 10s
+    volumes:
+      - admin_state:/app/.admin
+      - notes:/app/src/content/notes
+      - settings:/app/src/data/settings
+      - images:/app/public/images
+      - published:/published
+  blog:
+    image: ${CADDY_IMAGE:?Missing release proxy image}
+    pull_policy: never
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'wget',
+          '-q',
+          '-O',
+          '/dev/null',
+          'http://127.0.0.1:2019/config/',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 6
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?Missing site address}
+      SITE_ROOT: /published/current
+      ADMIN_UPSTREAM: admin:4330
+    ports:
+      - '${HTTP_PORT:-80}:80'
+      - '${HTTPS_PORT:-443}:443'
+    volumes:
+      - ${INSTALL_ROOT:?Missing installation directory}/proxy:/etc/caddy:ro
+      - published:/published:ro
+      - caddy_data:/data
+      - caddy_config:/config
+volumes:
+  admin_state:
+  notes:
+  settings:
+  images:
+  published:
+  caddy_data:
+  caddy_config:

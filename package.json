@@ -19,6 +19,9 @@
     "admin:reset-password": "node --env-file-if-exists=.env admin/reset-password.mjs",
     "new:post": "node scripts/new-post.mjs",
     "release": "npm run verify && node scripts/package-release.mjs",
+    "release:docker": "node scripts/package-docker-release.mjs",
+    "test:release": "node --test tests/release.test.mjs",
+    "test:deployment": "node tests/deployment-smoke.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
