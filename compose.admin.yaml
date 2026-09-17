@@ -4,6 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile.admin
     init: true
+    stop_grace_period: 10m
     restart: unless-stopped
     environment:
       ADMIN_ORIGIN: ${ADMIN_ORIGIN:?Set ADMIN_ORIGIN to the public HTTPS origin}

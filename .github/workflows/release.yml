@@ -1,0 +1,139 @@
+name: Validate and release
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  checks:
+    name: Source checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22.23.1'
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run verify
+      - run: npm run test:publishing
+      - run: npm run test:admin
+      - run: npm run test:release
+      - run: shellcheck deploy/manage.sh
+
+  bundles:
+    name: Deploy ${{ matrix.arch }}
+    needs: checks
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22.23.1'
+      - name: Select release version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$REF_TYPE" = tag ]; then
+            test "$REF_NAME" = "v$(node -p "require('./package.json').version")"
+            git merge-base --is-ancestor HEAD origin/main
+            echo "RELEASE_VERSION=$REF_NAME" >> "$GITHUB_ENV"
+          else
+            echo "RELEASE_VERSION=v0.0.0-ci.$GITHUB_RUN_ID.$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
+          fi
+      - name: Build and package native images
+        env:
+          RELEASE_ARCH: ${{ matrix.arch }}
+        run: npm run release:docker -- "$RELEASE_VERSION" "linux/$RELEASE_ARCH"
+      - name: Verify archive and deploy through complete lifecycle
+        env:
+          RELEASE_ARCH: ${{ matrix.arch }}
+        run: |
+          cd artifacts
+          sha256sum -c "sparblog-$RELEASE_VERSION-linux-$RELEASE_ARCH.tar.gz.sha256"
+          tar -xzf "sparblog-$RELEASE_VERSION-linux-$RELEASE_ARCH.tar.gz"
+          cd ..
+          RELEASE_BUNDLE="$PWD/artifacts/sparblog-$RELEASE_VERSION-linux-$RELEASE_ARCH" npm run test:deployment
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bundle-${{ matrix.arch }}
+          path: |
+            artifacts/*.tar.gz
+            artifacts/*.sha256
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  publish:
+    name: Publish verified release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [checks, bundles]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: bundle-*
+          path: release-assets
+          merge-multiple: true
+      - name: Upload, read back, verify and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          cd release-assets
+          sha256sum -c ./*.sha256
+          cat > /tmp/release-notes.md <<'NOTES'
+          Ubuntu 完整部署包，包含管理后台、Caddy 和全部运行依赖。
+
+          - x86_64 服务器选择 linux-amd64；ARM64 服务器选择 linux-arm64。
+          - 下载 .tar.gz 附件和对应 .sha256，校验后解压。Source code 附件不是部署包。
+          - 首次安装：`sudo bash ./manage.sh install /opt/sparblog https://sparsity.tech`
+          - 初始化账号：`sudo /opt/sparblog/manage.sh logs`
+          - 升级：`sudo /opt/sparblog/manage.sh upgrade /path/to/extracted-bundle`
+          - 文章、图片、网站设置、账号及已发布页面在升级时保留；后台重新登录并发布后更新公开页面。
+          - AMD64、ARM64 均通过真实容器安装、发布、升级、失败恢复、回滚与备份测试。
+
+          [完整部署说明](https://github.com/cyx2007/sparblog/blob/main/deploy/RELEASES.md)
+          NOTES
+          release_flags=()
+          latest=true
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            release_flags+=(--prerelease)
+            latest=false
+          fi
+          gh release create "$RELEASE_TAG" ./*.tar.gz ./*.sha256 --verify-tag --draft "${release_flags[@]}" --title "sparblog $RELEASE_TAG" --notes-file /tmp/release-notes.md
+          mkdir /tmp/release-readback
+          gh release download "$RELEASE_TAG" --dir /tmp/release-readback --pattern '*.tar.gz' --pattern '*.sha256'
+          cd /tmp/release-readback
+          sha256sum -c ./*.sha256
+          gh release edit "$RELEASE_TAG" --draft=false --latest="$latest"

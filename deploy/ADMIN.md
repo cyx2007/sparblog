@@ -2,6 +2,8 @@
 
 后台使用独立 Node.js 22.12+ 进程，Caddy 负责 HTTPS 和公开静态文件。域名仍为 `sparsity.tech`。以下是部署步骤；仓库中的配置文件不代表服务器已部署。
 
+Ubuntu 推荐使用 [GitHub Releases 完整镜像包](RELEASES.md)：无需上传源码或在服务器构建镜像，附安装、升级、备份和回滚脚本。以下保留 systemd 和源码 Docker Compose 部署方式。
+
 ## Ubuntu + systemd
 
 1. 安装 Node.js 22.12+、npm 和 [Caddy](https://caddyserver.com/docs/install#debian-ubuntu-raspbian)。确认 `node --version` 和 `command -v node`；如果 Node 不在 `/usr/bin/node`，修改 `sparsity-admin.service` 的 `ExecStart`。
